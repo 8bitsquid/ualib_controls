@@ -1,0 +1,7 @@
+name = UA Lib Search Tabs
+description = Tabbed search box for UA Lib website
+core = 6.x
+
+dependencies[] = ualib_controls
+
+package = University of Alabama Libraries

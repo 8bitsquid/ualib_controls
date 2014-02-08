@@ -1,0 +1,69 @@
+<?php
+
+function ualib_searchtabs_perm() {
+  return array('admin searchtabs');
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function ualib_searchtabs_theme(){
+  return array(
+    'ualib_searchtabs' => array(
+      'template' => 'ualib-searchtabs',
+    ),
+  );
+}
+
+function ualib_searchtabs_preprocess(&$variables, $hook){
+  if ($hook == 'page'){
+    $branch = $variables['ualib']['branch'];
+    $variables['template_files'][] = 'page-'.$branch->lib_name;
+  }
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ *
+ * @param &$node The node the action is being performed on.
+ * @param $op What kind of action is being performed. Possible values: alter, delete, delete revision, 
+ * 						insert, load, prepare, prepare translation, print, rss item, search result, presave, 
+ * 						update, update index, validate, view
+ * @param $teaser
+ * @param $page
+ */
+function ualib_searchtabs_nodeapi(&$node, $op, $teaser, $page){
+  switch ($op){
+    case 'view':
+      if ($node->type == 'frontpage'){
+        $tabPath = drupal_get_path('module','ualib_searchtabs');
+        $incPath = $tabPath.'/inc/';
+
+        drupal_add_css($tabPath.'/ualib_searchtabs.css');
+        drupal_add_js($tabPath.'/ualib_searchtabs.js');
+        drupal_add_js($incPath.'category.js');
+        drupal_add_js($incPath.'gen_wfx.js');
+        drupal_add_js($incPath.'wf3library.js');
+        drupal_add_js($incPath.'wfx.js');
+        drupal_add_js($incPath.'eds.js');
+        
+        /** 
+         * REQUIRED: Attach the Google branding watermark to your search box.
+         * WARNING: Branding attachment should be after transliteration 
+         * Set the "form" URL parameter to the id of the form containing the input search box.
+         * Set the "inputbox" URL parameter to the name or id of the query textbox. 
+         * 'q' will be used if it's not specified.
+         * Set the "lang" URL parameter to localize the branding for a specific
+         * language. Find the list of supported languages at
+         * http://code.google.com/apis/customsearch/docs/ref_languages.html
+         */
+        drupal_add_js('//www.google.com/cse/brand?form=cse-search-box-form-id&inputbox=cse-search-input-box-id');
+
+      	$node->content['ualib_searchtabs'] = array(
+        	'#value' => theme('ualib_searchtabs'),
+        	'#weight' => -1,
+      	);
+    	}
+    	break;
+  }
+}

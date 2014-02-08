@@ -1,0 +1,80 @@
+<?php
+
+/**
+ * Implementation of hook_install().
+ */
+function ualib_controls_install() {
+  drupal_install_schema('ualib_controls');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function ualib_controls_uninstall() {
+  drupal_uninstall_schema('ualib_controls');
+}
+
+/**
+ * Implementation of hook_schema().
+ */
+function ualib_controls_schema() {
+  $schema['ualib_data'] = array(
+    'fields' => array(
+      'lib_id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'Library id',
+      ),
+      'lib_name' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'Name of the library or entity',
+      ),
+      'path' => array(
+        'type' => 'text',
+        'not null' => TRUE,
+        'description' => 'List of pages that the module settings apply to',
+      ),
+    ),
+    'primary key' => array('lib_id'),
+  );
+/*
+  $schema['ualib_modules'] = array(
+    'fields' => array(
+      'mid' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'UA Lib module ID',
+      ),
+      'mname' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'Name of the UA Lib module',
+      ),
+      'pages' => array(
+        'type' => 'text',
+        'not null' => TRUE,
+        'description' => 'List of pages thatapply to the module .'
+      ),
+      'content_types' => array(
+        'type' => 'text',
+        'not null' => TRUE,
+        'description' => 'List of content types that apply to the module.'
+      ),
+    ),
+    'indexes' => array(
+      'mname' => array('mname'),
+      'pages' => array('pages'),
+      'content_types' => array('content_types'),
+    ),
+    'primary key' => array('mid'),
+  );
+*/
+  return $schema;
+}

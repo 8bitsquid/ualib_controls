@@ -1,0 +1,286 @@
+<?php
+
+global $ualib_info;
+$ualib_info = array();
+
+/**
+ * Implementation of hook_boot().
+ */
+function ualib_controls_boot() {
+  $useragent = $_SERVER['HTTP_USER_AGENT'];
+  global $ualib_info;
+
+  require_once('includes/Mobile_Detect.php');
+  $ualib_info['browser'] = new Mobile_Detect();
+
+if ($ualib_info['browser']->isMobile()){
+    if (isset($_GET['mr']) && $_GET['mr'] == 'nomr'){
+      setcookie('nomr','1',time()+3600,'/');
+    }
+    elseif (empty($_COOKIE['nomr']) && preg_match('/^\/m?([\/#]{1,2}.*)?$/m', $_SERVER['REQUEST_URI'])){
+      header('Location: http://www.lib.ua.edu/m');
+    }
+  }
+}
+
+/**
+ * Implementation of hook_help().
+ *
+ * @param $path A Drupal menu router path the help is being requested.
+ * @param $arg An array that corresponds to the return of the arg() function.
+ * @return A localized string containing the help text.
+ */
+function ualib_controls_help($path, $arg) {
+  $output = '';
+  switch ($path) {
+    case "admin/help#ualib":
+      $output = t("Manages custom Drupal modules for the University of Alabama Libraries'");
+      break;
+  }
+  return $output;
+}
+
+/**
+ * Implementation of hook_perm().
+ *
+ * @return array An array of valid permissions for the ualib module
+ */
+function ualib_controls_perm() {
+  return array('administer ualib_controls');
+}
+
+/**
+ * Implementation of hook_menu().
+ *
+ * @return An array of menu items.
+ */
+function ualib_controls_menu() {
+  $items = array();
+  $access = array('administer ualib_controls');
+
+  $items['ualib-controls'] = array(
+    'title' => 'UA Lib',
+    'description' => 'Manage custom modules and Drupal settings for the University of Alabama Libraries\' website',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ualib_controls_admin_display_form'),
+    'access arguments' => $access,
+    'file' => 'ualib_controls.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['ualib-controls/list'] = array(
+    'title' => 'Branches',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ualib_controls_admin_display_form'),
+    'access arguments' => $access,
+    'weight' => -10,
+    'file' => 'ualib_controls.admin.inc',
+    'type' => MENU_DEFAULT_LOCAL_TASK
+  );
+  $items['ualib-controls/add'] = array(
+    'title' => 'Add new library or entity',
+    'description' => 'Add new library or entity to the UA Libraries\' modules',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ualib_contorls_admin_branch_form'),
+    'access arguments' => $access,
+    'file' => 'ualib_controls.admin.inc',
+    'type' => MENU_LOCAL_TASK,
+  );
+  $items['ualib-controls/edit/%branch'] = array(
+    'title' => 'Add new library or entity',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ualib_contorls_admin_branch_form', 2),
+    'access arguments' => $access,
+    'file' => 'ualib_controls.admin.inc',
+    'type' => MENU_CALLBACK
+  );
+  $items['ualib-controls/delete/%branch'] = array(
+    'title' => 'Delete library or entity',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ualib_controls_branch_delete_form', 2),
+    'access arguments' => $access,
+    'file' => 'ualib_controls.admin.inc',
+    'type' => MENU_CALLBACK
+  );
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_preprocess().
+ */
+function ualib_controls_preprocess(&$variables, $hook) {
+  global $ualib_info;
+
+  if ($branch = _ualib_page_is_branch()){
+    $variables['ualib']['branch'] = $branch;
+  }
+  else{
+    $variables['ualib']['branch'] = false;
+  }
+
+  switch($hook){
+    case 'page':
+      $ualib_settings = array(
+        'branch' => $variables['ualib']['branch'],
+        'base_path' => drupal_get_path('module', 'ualib_controls'),
+        'is_mobile' => $ualib_info['browser']->isMobile(),
+      );
+
+      drupal_add_js( array( 'ualib' => $ualib_settings), 'setting');
+      $variables['css']['all']['theme'][_ualib_get_css('header', $branch->lib_name)] = true;
+      $variables['ualib']['header'] = _ualib_get_template('header', $branch->lib_name);
+
+      $variables['ualib']['browser'] = array(
+        'name' => $ualib_info['browser']->getBrowser(),
+        'version' => $ualib_info['browser']->getVersion(),
+        'OS' => $ualib_info['browser']->getPlatform(),
+        'isMobile' => $ualib_info['browser']->isMobile()
+      );
+
+      //---> Load IE CSS from modules call hook_ualib_ie_css
+      if ($ie_css = ualib_controls_get_ie_css()){
+        foreach ($ie_css as $css){
+          $variables['css']['all']['theme'][$css] = true;
+        }
+      }
+
+
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_load().
+ *
+ * @param $node The node being loaded.
+ */
+function branch_load($branch) {
+  return db_fetch_object(db_query("SELECT * FROM {ualib_data} WHERE lib_id = %d", $branch));
+}
+
+/**
+ * Implementation of hook_theme()
+ */
+function ualib_controls_theme() {
+  return array(
+    'ualib_controls_admin_display_form' => array(
+      'file' => 'ualib_controls.admin.inc',
+      'arguments' => array('form' => NULL),
+    ),
+  );
+}
+
+/**
+ * Function gets the hook_ualib_ie_css() hook from all modules that call it.
+ *   -This hooks is used to specify IE specific CSS files to be loaded for that module.
+ *   Structure:
+ *   myModule_ualib_ie_css(){
+ *     return array(
+ *       'path' => '/path/to/myModule', //optional
+ *       'ie' => array(
+ *         '7' => 'myModule-ie-7.css',
+ *         '8' => myModule-ie-8.css',
+ *         '9' => 'muModule-ie-9.css',
+ *       ),
+ *     );
+ *   }
+ */
+
+function ualib_controls_get_ie_css(){
+  global $ualib_info;
+  if ($ualib_info['browser']->getBrowser() == 'Internet Explorer'){
+    static $cache = NULL;
+    if (!isset($cache)) {
+      $cache = array();
+      $ver = floor($ualib_info['browser']->getVersion());
+      foreach (module_implements('ualib_ie_css') as $module) {
+        $function = $module . '_ualib_ie_css';
+        $info = $function();
+        if (!isset($info['path'])) {
+          $info['path'] = drupal_get_path('module', $module);
+        }
+        if (!empty($info['ie'])){
+          foreach ($info['ie'] as $ie => $css){
+            $dn_ver = $ver-1;
+            $regex = "/^(?:(?:^lt[^1-$ver]|[lg]te$ver)|gt[1-$dn_ver])$/";
+            if (preg_match($regex, $ie) && file_exists("./$info[path]/$css")){
+              $cache[] = "$info[path]/$css";
+            }
+          }
+        }
+      }
+    }
+    return $cache;
+  }
+  return FALSE;
+}
+
+/*
+ *##################################
+ * -------  Helper Functions -------
+ *##################################
+ */
+
+/**
+ * ualib_page_is_branch().
+ *
+ * This function identifies if the current URL alias belongs to a branch/entity
+ *
+ * @return $row as an object if branch found, otherwise false
+ */
+function _ualib_page_is_branch(){
+
+  $result = db_query("SELECT lib_name, path FROM {ualib_data}");
+  while ($row = db_fetch_object($result)){
+    $path = drupal_get_path_alias($_GET['q']);
+    // Compare with the internal and path alias (if any).
+    $page_match = drupal_match_path($path, $row->path);
+    if ($path != $_GET['q']) {
+      $page_match = $page_match || drupal_match_path($_GET['q'], $row->path);
+    }
+    if ($page_match){
+      return $row;
+    }
+  }
+
+  return FALSE;
+}
+
+/**
+ * _ualib_get_css()
+ *
+ * This function returns the path to a branch/template CSS file.
+ *
+ * @param $to - the folder destination/template type
+ * @param $branch - the branch/template name. If branch is FALSE, the $to value will be used as the file name.
+ */
+
+function _ualib_get_css($to, $branch){
+  $path = 'sites/all/themes/ua_libraries/css/' . $to . '/';
+  $path .= !$branch ? $to . '.css' : $to . '-' . $branch . '.css';
+
+  return $path;
+}
+
+
+/**
+ * _ualib_get_template()
+ *
+ * This function is a custom rewrite of the theme_render_template() function in Drupal
+ *   Original function - http://api.drupal.org/api/drupal/includes--theme.inc/function/theme_render_template/6
+ *
+ * @param $to - the folder/template type
+ * @param $branch - the branch/template name
+ * @return $contents - contents of the template file
+ */
+function _ualib_get_template($to, $branch){
+  $path = 'sites/all/themes/ua_libraries/templates/' . $to . '/';
+  $path .= !$branch ? $to . '.tpl.php' : $to . '-'.$branch . '.tpl.php';
+
+
+  ob_start(); // Start output buffering
+  include "./$path"; // Include the template file
+  $contents = ob_get_contents(); // Get the contents of the buffer
+  ob_end_clean(); // End buffering and discard
+  return $contents; // Return the contents
+}

@@ -1,0 +1,5 @@
+name = UA Lib Controls
+description = This module manages custom modules for the University Libraries' drupal install and provides package-wide variables and hooks
+core = 6.x
+package = University of Alabama Libraries
+project = "ualib_controls"
